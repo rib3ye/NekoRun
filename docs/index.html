@@ -59,46 +59,6 @@
     padding: 0 24px;
   }
 
-  /* ---------- fake macOS menu bar ---------- */
-  .menubar {
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    background: rgba(251, 246, 236, 0.85);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border-bottom: 1px solid var(--rule);
-    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-    font-size: 13px;
-    user-select: none;
-  }
-  .menubar-inner {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 0 16px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    gap: 18px;
-    white-space: nowrap;
-  }
-  .menubar .apple { font-size: 14px; }
-  .menubar .appname { font-weight: 700; }
-  .menubar .item { color: var(--ink); opacity: 0.85; }
-  .menubar .spacer { flex: 1; }
-  .menubar .right { display: flex; align-items: center; gap: 14px; }
-  .menubar-cat {
-    width: 19px; height: 19px;
-    display: block;
-    cursor: pointer;
-    transition: transform 0.15s ease;
-  }
-  .menubar-cat:hover { transform: scale(1.18); }
-  @media (max-width: 600px) {
-    .menubar .item { display: none; }
-    .menubar .appname { display: inline; }
-  }
-
   /* ---------- hero ---------- */
   .hero {
     padding: 84px 0 40px;
@@ -408,22 +368,6 @@
 </style>
 </head>
 <body>
-
-<!-- fake macOS menu bar — the cat lives here, just like real life -->
-<nav class="menubar" aria-label="Decorative macOS menu bar">
-  <div class="menubar-inner">
-    <span class="apple" aria-hidden="true">🍏</span>
-    <span class="appname">NekoRun</span>
-    <span class="item">File</span>
-    <span class="item">Edit</span>
-    <span class="item">Drop</span>
-    <span class="item">Purr</span>
-    <span class="spacer"></span>
-    <div class="right">
-      <img class="menubar-cat js-cat" src="assets/cat.png" alt="NekoRun cat icon — hover me" title="this is where I live">
-    </div>
-  </div>
-</nav>
 
 <main class="wrap">
 
