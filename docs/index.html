@@ -399,7 +399,7 @@
     <div class="demo-stage">
       <div class="drop-zone" id="dropZone">
         <img class="drop-cat js-cat" id="dropCat" src="assets/cat.png" alt="Drop target cat">
-        <div class="file-chip" id="fileChip" draggable="true">📄 vacation_photos.zip</div>
+        <div class="file-chip" id="fileChip" draggable="true">📄 cat_pics.rar</div>
         <p class="drop-label" id="dropLabel">drag the file onto the cat<br>(or tap the cat, if you're on a phone)</p>
       </div>
 
@@ -464,7 +464,7 @@
   let busy = false;
 
   chip.addEventListener('dragstart', e => {
-    e.dataTransfer.setData('text/plain', 'vacation_photos.zip');
+    e.dataTransfer.setData('text/plain', 'cat_pics.rar');
     e.dataTransfer.effectAllowed = 'copy';
   });
 
@@ -481,7 +481,7 @@
   zone.addEventListener('drop', e => {
     e.preventDefault();
     zone.classList.remove('armed');
-    let name = 'vacation_photos.zip';
+    let name = 'cat_pics.rar';
     if (e.dataTransfer.files && e.dataTransfer.files.length) {
       name = e.dataTransfer.files[0].name; // stays local — name only, file is never read
     } else {
@@ -492,7 +492,7 @@
   });
 
   // tap fallback for touch devices
-  cat.addEventListener('click', () => runUpload('vacation_photos.zip'));
+  cat.addEventListener('click', () => runUpload('cat_pics.rar'));
 
   function line(html) {
     return new Promise(res => {
