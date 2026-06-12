@@ -3,11 +3,45 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NekoRun — drop files on a cat</title>
-<meta name="description" content="NekoRun is a tiny macOS menu-bar cat that scps whatever you drop on it to your server. That's it. That's the app.">
+<title>NekoRun — drop files on a cat | free macOS menu-bar SCP uploader</title>
+<meta name="description" content="NekoRun is a free, open-source macOS menu-bar utility for drag-and-drop SCP uploads. Drop a file on the cat in your menu bar and it lands on your SSH server.">
+<meta name="author" content="Noah Tsutsui">
+<meta name="theme-color" content="#FBF6EC">
+<link rel="canonical" href="https://rib3ye.github.io/NekoRun/">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="NekoRun">
+<meta property="og:url" content="https://rib3ye.github.io/NekoRun/">
 <meta property="og:title" content="NekoRun — drop files on a cat">
-<meta property="og:description" content="A tiny macOS menu-bar utility. Drop a file on the cat, it lands on your server.">
-<meta property="og:image" content="https://rib3ye.github.io/NekoRun/assets/cat-hover.png">
+<meta property="og:description" content="A tiny, free macOS menu-bar utility. Drop a file on the cat, it scps to your server.">
+<meta property="og:image" content="https://rib3ye.github.io/NekoRun/assets/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A black cartoon cat above the headline: Drop files on a cat. They end up on your server.">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="NekoRun — drop files on a cat">
+<meta name="twitter:description" content="A tiny, free macOS menu-bar utility. Drop a file on the cat, it scps to your server.">
+<meta name="twitter:image" content="https://rib3ye.github.io/NekoRun/assets/og-card.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "NekoRun",
+  "operatingSystem": "macOS 13+",
+  "applicationCategory": "UtilitiesApplication",
+  "description": "A tiny macOS menu-bar utility for drag-and-drop SCP file uploads. Drop a file on the cat in your menu bar and it uploads to your SSH server, with an optional post-upload shell hook.",
+  "url": "https://rib3ye.github.io/NekoRun/",
+  "downloadUrl": "https://github.com/rib3ye/NekoRun/releases/latest/download/NekoRun-1.0.dmg",
+  "softwareVersion": "1.0",
+  "license": "https://github.com/rib3ye/NekoRun/blob/main/LICENSE",
+  "image": "https://rib3ye.github.io/NekoRun/assets/og-card.png",
+  "author": { "@type": "Person", "name": "Noah Tsutsui" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
 <link rel="icon" type="image/png" href="assets/cat-hover.png">
 <link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="favicon.ico">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -81,18 +115,20 @@
   .hero-cat-wrap:hover .hero-cat { transform: rotate(-6deg) scale(1.06); }
   .hero-cat-wrap .hint {
     position: absolute;
-    top: 8px;
-    left: calc(100% + 16px);
+    bottom: calc(100% + 6px);
+    left: 64%;
     font-size: 13.5px;
     color: var(--ink-soft);
     font-style: italic;
     white-space: nowrap;
-    transform: rotate(4deg);
+    transform: rotate(-4deg);
+    transform-origin: bottom left;
   }
   .hero-cat-wrap .hint::before {
-    content: "↖";
+    content: "↙";
     margin-right: 4px;
     font-style: normal;
+    display: inline-block;
   }
   @media (max-width: 620px) { .hero-cat-wrap .hint { display: none; } }
 
@@ -386,7 +422,7 @@
         <img src="assets/cat-white-hover.png" alt="">
         Download NekoRun.dmg
       </a>
-      <span class="dl-meta">macOS 13+ &nbsp;·&nbsp; free &nbsp;·&nbsp; MIT &nbsp;·&nbsp; <a href="https://github.com/rib3ye/NekoRun">source on GitHub</a></span>
+      <span class="dl-meta">macOS 13+ &nbsp;·&nbsp; <a href="https://github.com/rib3ye/NekoRun">source on GitHub</a></span>
     </div>
   </section>
 
