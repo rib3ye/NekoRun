@@ -21,6 +21,10 @@ struct ContentView: View {
             set: { _ in loginItem.toggle() }
         ))
         Divider()
+        Button("Clear All Data…") {
+            Uploader.presentClearAllDataAlert()
+        }
+        Divider()
         Button("Quit NekoRun") {
             NSApp.terminate(nil)
         }

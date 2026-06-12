@@ -224,6 +224,25 @@ enum Uploader {
         }
     }
 
+    @MainActor
+    static func presentClearAllDataAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Clear all NekoRun data?"
+        alert.informativeText = "Removes the saved upload destination and post-upload hook. Launch at Login is unaffected."
+        alert.alertStyle = .warning
+        let clearButton = alert.addButton(withTitle: "Clear")
+        clearButton.hasDestructiveAction = true
+        let cancelButton = alert.addButton(withTitle: "Cancel")
+        cancelButton.keyEquivalent = "\u{1b}"
+
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            UploadDestinationStore.shared.host = nil
+            UploadDestinationStore.shared.directory = nil
+            PostUploadHookStore.shared.command = nil
+        }
+    }
+
     // MARK: - Process helper
 
     private enum RunResult {
