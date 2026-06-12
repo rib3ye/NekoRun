@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NekoRun — drop files on a cat</title>
+<meta name="description" content="NekoRun is a tiny macOS menu-bar cat that scps whatever you drop on it to your server. That's it. That's the app.">
+<meta property="og:title" content="NekoRun — drop files on a cat">
+<meta property="og:description" content="A tiny macOS menu-bar utility. Drop a file on the cat, it lands on your server.">
+<meta property="og:image" content="https://rib3ye.github.io/NekoRun/assets/cat-hover.png">
+<link rel="icon" type="image/png" href="assets/cat-hover.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,400..900,100&family=Fragment+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #FBF6EC;
+    --paper-dim: #F3ECDD;
+    --ink: #1A1612;
+    --ink-soft: #5C544A;
+    --flame: #E8590C;
+    --rule: #D9CFBC;
+    --radius: 14px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 17px;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* paper grain */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.5;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .mono {
+    font-family: "Fragment Mono", ui-monospace, monospace;
+    font-size: 0.82em;
+    letter-spacing: -0.01em;
+  }
+
+  .wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* ---------- fake macOS menu bar ---------- */
+  .menubar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(251, 246, 236, 0.85);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--rule);
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    font-size: 13px;
+    user-select: none;
+  }
+  .menubar-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 16px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    white-space: nowrap;
+  }
+  .menubar .apple { font-size: 14px; }
+  .menubar .appname { font-weight: 700; }
+  .menubar .item { color: var(--ink); opacity: 0.85; }
+  .menubar .spacer { flex: 1; }
+  .menubar .right { display: flex; align-items: center; gap: 14px; }
+  .menubar-cat {
+    width: 19px; height: 19px;
+    display: block;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+  .menubar-cat:hover { transform: scale(1.18); }
+  .menubar .clock { font-variant-numeric: tabular-nums; opacity: 0.85; }
+  @media (max-width: 600px) {
+    .menubar .item, .menubar .clock { display: none; }
+    .menubar .appname { display: inline; }
+  }
+
+  /* ---------- hero ---------- */
+  .hero {
+    padding: 84px 0 40px;
+    text-align: center;
+    position: relative;
+  }
+  .hero-cat-wrap {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 28px;
+  }
+  .hero-cat {
+    width: 120px;
+    height: 120px;
+    display: block;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .hero-cat-wrap:hover .hero-cat { transform: rotate(-6deg) scale(1.06); }
+  .hero-cat-wrap .hint {
+    position: absolute;
+    top: 8px;
+    left: calc(100% + 16px);
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    font-style: italic;
+    white-space: nowrap;
+    transform: rotate(4deg);
+  }
+  .hero-cat-wrap .hint::before {
+    content: "↖";
+    margin-right: 4px;
+    font-style: normal;
+  }
+  @media (max-width: 620px) { .hero-cat-wrap .hint { display: none; } }
+
+  h1 {
+    font-size: clamp(40px, 7.5vw, 72px);
+    font-weight: 620;
+    font-variation-settings: "SOFT" 100, "opsz" 144;
+    line-height: 1.04;
+    letter-spacing: -0.025em;
+    margin-bottom: 22px;
+  }
+  h1 em {
+    font-style: italic;
+    color: var(--flame);
+  }
+  .hero p.sub {
+    font-size: 19px;
+    color: var(--ink-soft);
+    max-width: 520px;
+    margin: 0 auto 36px;
+  }
+
+  .dl-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .dl-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--ink);
+    color: var(--paper);
+    text-decoration: none;
+    font-family: "Fragment Mono", monospace;
+    font-size: 15px;
+    padding: 16px 30px;
+    border-radius: 999px;
+    border: 1.5px solid var(--ink);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 4px 4px 0 var(--flame);
+  }
+  .dl-btn:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 7px 7px 0 var(--flame);
+  }
+  .dl-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 var(--flame);
+  }
+  .dl-btn img { width: 20px; height: 20px; }
+  .dl-meta {
+    font-size: 13.5px;
+    color: var(--ink-soft);
+  }
+  .dl-meta a { color: inherit; }
+
+  /* ---------- dotted divider ---------- */
+  .divider {
+    text-align: center;
+    color: var(--rule);
+    font-size: 20px;
+    letter-spacing: 14px;
+    padding: 44px 0;
+    user-select: none;
+  }
+
+  /* ---------- demo ---------- */
+  .demo { padding-bottom: 16px; }
+  .kicker {
+    font-family: "Fragment Mono", monospace;
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--flame);
+    margin-bottom: 12px;
+  }
+  h2 {
+    font-size: clamp(26px, 4vw, 36px);
+    font-weight: 580;
+    font-variation-settings: "SOFT" 100;
+    letter-spacing: -0.015em;
+    line-height: 1.15;
+    margin-bottom: 14px;
+  }
+  .section-note { color: var(--ink-soft); max-width: 560px; }
+
+  .demo-stage {
+    margin-top: 36px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    align-items: stretch;
+  }
+  @media (max-width: 700px) { .demo-stage { grid-template-columns: 1fr; } }
+
+  .drop-zone {
+    border: 2px dashed var(--rule);
+    border-radius: var(--radius);
+    background: var(--paper-dim);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 40px 24px;
+    min-height: 300px;
+    position: relative;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .drop-zone.armed {
+    border-color: var(--flame);
+    background: #FDF0E4;
+  }
+  .drop-cat {
+    width: 96px;
+    height: 96px;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .drop-zone.armed .drop-cat { transform: scale(1.15); }
+  .drop-cat.uploading { animation: wiggle 0.5s ease-in-out infinite; }
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(-7deg); }
+    50% { transform: rotate(7deg); }
+  }
+  .drop-label {
+    font-size: 14.5px;
+    color: var(--ink-soft);
+    font-style: italic;
+    text-align: center;
+  }
+
+  .file-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff;
+    border: 1.5px solid var(--ink);
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-family: "Fragment Mono", monospace;
+    font-size: 13.5px;
+    cursor: grab;
+    box-shadow: 3px 3px 0 var(--rule);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;
+    user-select: none;
+    -webkit-user-drag: element;
+  }
+  .file-chip:hover { transform: rotate(-2deg); box-shadow: 4px 5px 0 var(--rule); }
+  .file-chip:active { cursor: grabbing; }
+  .file-chip.gone { opacity: 0.3; }
+
+  .terminal {
+    background: var(--ink);
+    border-radius: var(--radius);
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 300px;
+    box-shadow: 6px 6px 0 var(--rule);
+  }
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 11px 14px;
+    background: #2A241D;
+  }
+  .terminal-bar i {
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    display: block;
+  }
+  .terminal-bar i:nth-child(1) { background: #FF5F57; }
+  .terminal-bar i:nth-child(2) { background: #FEBC2E; }
+  .terminal-bar i:nth-child(3) { background: #28C840; }
+  .terminal-bar span {
+    margin-left: auto;
+    font-family: "Fragment Mono", monospace;
+    font-size: 11px;
+    color: #8a8174;
+  }
+  .terminal-body {
+    flex: 1;
+    padding: 18px;
+    font-family: "Fragment Mono", monospace;
+    font-size: 13px;
+    line-height: 1.75;
+    color: #E9E2D4;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .terminal-body .dim { color: #8a8174; }
+  .terminal-body .ok { color: #7DC97F; }
+  .terminal-body .fl { color: #F1924E; }
+  .cursor {
+    display: inline-block;
+    width: 8px; height: 15px;
+    background: #E9E2D4;
+    vertical-align: text-bottom;
+    animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ---------- how it works ---------- */
+  .steps {
+    margin-top: 36px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  @media (max-width: 700px) { .steps { grid-template-columns: 1fr; } }
+  .step {
+    border: 1.5px solid var(--ink);
+    border-radius: var(--radius);
+    padding: 24px 22px;
+    background: #fff;
+    box-shadow: 4px 4px 0 var(--rule);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .step:hover {
+    transform: translate(-2px, -3px) rotate(-0.5deg);
+    box-shadow: 7px 8px 0 var(--rule);
+  }
+  .step:nth-child(2):hover { transform: translate(-2px, -3px) rotate(0.6deg); }
+  .step .num {
+    font-family: "Fragment Mono", monospace;
+    font-size: 12px;
+    color: var(--flame);
+    display: block;
+    margin-bottom: 10px;
+  }
+  .step h3 {
+    font-size: 19px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-variation-settings: "SOFT" 100;
+  }
+  .step p { font-size: 14.5px; color: var(--ink-soft); }
+  .step code {
+    font-family: "Fragment Mono", monospace;
+    font-size: 0.86em;
+    background: var(--paper-dim);
+    padding: 1px 6px;
+    border-radius: 5px;
+    border: 1px solid var(--rule);
+  }
+
+  /* ---------- honest section ---------- */
+  .honest-list {
+    margin-top: 32px;
+    border-top: 1.5px solid var(--ink);
+  }
+  .honest-item {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 20px;
+    padding: 20px 4px;
+    border-bottom: 1px solid var(--rule);
+  }
+  @media (max-width: 620px) { .honest-item { grid-template-columns: 1fr; gap: 6px; } }
+  .honest-item dt {
+    font-family: "Fragment Mono", monospace;
+    font-size: 13px;
+    color: var(--ink);
+    padding-top: 3px;
+  }
+  .honest-item dd { color: var(--ink-soft); font-size: 15.5px; }
+
+  .bomb-note {
+    margin-top: 44px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    background: #fff;
+    border: 1.5px solid var(--ink);
+    border-radius: var(--radius);
+    padding: 26px 28px;
+    box-shadow: 4px 4px 0 #f0c9ae;
+  }
+  .bomb-note img {
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .bomb-note:hover img { transform: rotate(-12deg) scale(1.1); }
+  .bomb-note h3 {
+    font-size: 19px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    font-variation-settings: "SOFT" 100;
+  }
+  .bomb-note p { font-size: 15px; color: var(--ink-soft); }
+  @media (max-width: 540px) { .bomb-note { flex-direction: column; text-align: center; } }
+
+  /* ---------- footer ---------- */
+  footer {
+    margin-top: 80px;
+    border-top: 1.5px solid var(--ink);
+    padding: 36px 0 56px;
+  }
+  .footer-inner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 14px;
+    color: var(--ink-soft);
+  }
+  .footer-inner img { width: 26px; height: 26px; }
+  .footer-inner a { color: var(--ink); text-underline-offset: 3px; }
+  .footer-inner .push { margin-left: auto; }
+
+  ::selection { background: var(--flame); color: var(--paper); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<!-- fake macOS menu bar — the cat lives here, just like real life -->
+<nav class="menubar" aria-label="Decorative macOS menu bar">
+  <div class="menubar-inner">
+    <span class="apple" aria-hidden="true">🍏</span>
+    <span class="appname">NekoRun</span>
+    <span class="item">File</span>
+    <span class="item">Edit</span>
+    <span class="item">Drop</span>
+    <span class="item">Purr</span>
+    <span class="spacer"></span>
+    <div class="right">
+      <img class="menubar-cat js-cat" src="assets/cat.png" alt="NekoRun cat icon — hover me" title="this is where I live">
+      <span class="clock" id="clock">Wed 9:41 AM</span>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <!-- hero -->
+  <section class="hero">
+    <div class="hero-cat-wrap">
+      <img class="hero-cat js-cat" src="assets/cat.png" alt="The NekoRun cat. Sleepy until you hover.">
+      <span class="hint">pet the cat</span>
+    </div>
+    <h1>Drop files on a cat.<br>They end up <em>on your server.</em></h1>
+    <p class="sub">NekoRun is a tiny macOS menu-bar utility that <span class="mono">scp</span>s whatever you drop on it. That's it. That's the whole app.</p>
+    <div class="dl-row">
+      <a class="dl-btn" href="https://github.com/rib3ye/NekoRun/releases/latest/download/NekoRun-1.0.dmg">
+        <img src="assets/cat-white-hover.png" alt="">
+        Download NekoRun.dmg
+      </a>
+      <span class="dl-meta">macOS 13+ &nbsp;·&nbsp; free &nbsp;·&nbsp; MIT &nbsp;·&nbsp; <a href="https://github.com/rib3ye/NekoRun">source on GitHub</a></span>
+    </div>
+  </section>
+
+  <div class="divider" aria-hidden="true">· · · 🐾 · · ·</div>
+
+  <!-- demo -->
+  <section class="demo">
+    <p class="kicker">Try it (no cat required)</p>
+    <h2>Drag the file onto the cat.</h2>
+    <p class="section-note">This is roughly what using NekoRun feels like, minus the part where the file actually goes somewhere. You can also drag a real file in from your desktop — we promise it stays on your computer.</p>
+
+    <div class="demo-stage">
+      <div class="drop-zone" id="dropZone">
+        <img class="drop-cat js-cat" id="dropCat" src="assets/cat.png" alt="Drop target cat">
+        <div class="file-chip" id="fileChip" draggable="true">📄 vacation_photos.zip</div>
+        <p class="drop-label" id="dropLabel">drag the file onto the cat<br>(or tap the cat, if you're on a phone)</p>
+      </div>
+
+      <div class="terminal" aria-live="polite">
+        <div class="terminal-bar"><i></i><i></i><i></i><span>nekorun — scp</span></div>
+        <div class="terminal-body" id="term"><span class="dim"># waiting for a file…</span>
+<span class="cursor"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider" aria-hidden="true">· · · 🐾 · · ·</div>
+
+  <!-- how it works -->
+  <section>
+    <p class="kicker">How it works</p>
+    <h2>Three steps. Two of them are setup.</h2>
+    <div class="steps">
+      <div class="step">
+        <span class="num">01</span>
+        <h3>Tell it where</h3>
+        <p>Click the cat → <em>Set Upload Destination…</em> and give it <code>you@yourserver</code> plus a remote path. It remembers.</p>
+      </div>
+      <div class="step">
+        <span class="num">02</span>
+        <h3>Maybe add a hook</h3>
+        <p>Optionally set a shell command that runs after every upload — <code>chmod</code> things, restart things, notify things.</p>
+      </div>
+      <div class="step">
+        <span class="num">03</span>
+        <h3>Drop stuff on the cat</h3>
+        <p>Files, folders, whatever. The cat wiggles while <code>scp -r</code> does its thing. That wiggle is the progress bar.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider" aria-hidden="true">· · · 🐾 · · ·</div>
+
+  <!-- honest fine print -->
+  <section>
+    <p class="kicker">The fine print, cheerfully</p>
+    <h2>Some honest notes.</h2>
+    <dl class="honest-list">
+      <div class="honest-item">
+        <dt>menu bar only</dt>
+        <dd>No Dock icon, no window, no settings app. If you lose the cat, it's in the menu bar. It's always in the menu bar.</dd>
+      </div>
+      <div class="honest-item">
+        <dt>ssh keys required</dt>
+        <dd>NekoRun shells out to your actual <span class="mono">scp</span>. There's no password prompt — if <span class="mono">ssh yourserver</span> works in your terminal, the cat works too.</dd>
+      </div>
+      <div class="honest-item">
+        <dt>nothing baked in</dt>
+        <dd>No host, path, or command ships in the binary. No analytics, no network calls except the one you configured. It's your <span class="mono">scp</span> wearing a cat costume.</dd>
+      </div>
+      <div class="honest-item">
+        <dt>launch at login</dt>
+        <dd>One toggle. Uses Apple's own <span class="mono">SMAppService</span>, so it shows up in System Settings like a well-behaved citizen.</dd>
+      </div>
+      <div class="honest-item">
+        <dt>overwrites silently</dt>
+        <dd>Same filename on the server gets replaced without asking, because that's what <span class="mono">scp</span> does. The cat trusts you.</dd>
+      </div>
+    </dl>
+
+    <div class="bomb-note">
+      <img src="assets/bomb.png" alt="A cartoon bomb with a lit fuse">
+      <div>
+        <h3>When something breaks, you get a bomb.</h3>
+        <p>Wrong host, no network, missing Local Network permission — the failure alert shows this bomb and the actual <span class="mono">scp</span> error so you can fix it. It felt more honest than a sad cat.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-inner">
+      <img src="assets/cat.png" alt="">
+      <span>NekoRun · © 2026 Noah Tsutsui · <a href="https://github.com/rib3ye/NekoRun/blob/main/LICENSE">MIT</a></span>
+      <span class="push"><a href="https://github.com/rib3ye/NekoRun">github.com/rib3ye/NekoRun</a></span>
+    </div>
+  </footer>
+
+</main>
+
+<script>
+  // ---- hover swap: every cat opens its eyes, just like the real menu bar icon ----
+  document.querySelectorAll('.js-cat').forEach(cat => {
+    const sleepy = cat.src;
+    const awake = sleepy.replace(/cat(-white)?\.png$/, 'cat$1-hover.png');
+    cat.addEventListener('mouseenter', () => { cat.src = awake; });
+    cat.addEventListener('mouseleave', () => { if (!cat.classList.contains('uploading')) cat.src = sleepy; });
+  });
+
+  // ---- live-ish clock ----
+  function tickClock() {
+    const d = new Date();
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    let h = d.getHours(), m = String(d.getMinutes()).padStart(2, '0');
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    document.getElementById('clock').textContent = `${days[d.getDay()]} ${h}:${m} ${ap}`;
+  }
+  tickClock();
+  setInterval(tickClock, 30000);
+
+  // ---- the demo ----
+  const zone = document.getElementById('dropZone');
+  const cat = document.getElementById('dropCat');
+  const chip = document.getElementById('fileChip');
+  const label = document.getElementById('dropLabel');
+  const term = document.getElementById('term');
+  let busy = false;
+
+  chip.addEventListener('dragstart', e => {
+    e.dataTransfer.setData('text/plain', 'vacation_photos.zip');
+    e.dataTransfer.effectAllowed = 'copy';
+  });
+
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    zone.classList.add('armed');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('armed'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('armed');
+    let name = 'vacation_photos.zip';
+    if (e.dataTransfer.files && e.dataTransfer.files.length) {
+      name = e.dataTransfer.files[0].name; // stays local — name only, file is never read
+    } else {
+      const t = e.dataTransfer.getData('text/plain');
+      if (t) name = t;
+    }
+    runUpload(name);
+  });
+
+  // tap fallback for touch devices
+  cat.addEventListener('click', () => runUpload('vacation_photos.zip'));
+
+  function line(html) {
+    return new Promise(res => {
+      const el = document.createElement('div');
+      el.innerHTML = html;
+      term.insertBefore(el, term.lastElementChild); // keep cursor last
+      setTimeout(res, 420 + Math.random() * 380);
+    });
+  }
+
+  async function runUpload(name) {
+    if (busy) return;
+    busy = true;
+    chip.classList.add('gone');
+    label.textContent = 'uploading… (the wiggle is the progress bar)';
+    cat.classList.add('uploading');
+    cat.src = 'assets/cat-hover.png';
+    term.innerHTML = '<span class="cursor"></span>';
+
+    const safe = name.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    await line(`<span class="dim">$</span> scp -r <span class="fl">"${safe}"</span> you@yourserver:~/uploads/`);
+    await line(`<span class="dim">${safe.slice(0, 28)}  100%  …fast enough…</span>`);
+    await line(`<span class="ok">✓ upload complete</span>`);
+    await line(`<span class="dim">$</span> <span class="dim"># running post-upload hook…</span>`);
+    await line(`<span class="ok">✓ hook finished. the cat goes back to sleep.</span>`);
+
+    cat.classList.remove('uploading');
+    cat.style.transform = '';
+    cat.src = 'assets/cat.png';
+    label.innerHTML = 'again? drag another file in<br>(a real one from your desktop works too)';
+    chip.classList.remove('gone');
+    busy = false;
+  }
+</script>
+</body>
+</html>
