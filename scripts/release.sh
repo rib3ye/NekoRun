@@ -13,6 +13,10 @@
 
 set -euo pipefail
 
+# Make sure Homebrew tools (gh) are visible regardless of how the script
+# is invoked.
+PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_DIR"
 
@@ -130,3 +134,26 @@ rm -f "$RW_DMG"
 echo ""
 echo "Output: $DMG_PATH"
 shasum -a 256 "$DMG_PATH"
+
+if [ "${SKIP_GH_RELEASE:-0}" = "1" ]; then
+    exit 0
+fi
+
+if ! command -v gh >/dev/null 2>&1; then
+    echo ""
+    echo "Note: 'gh' not installed — skipping GitHub Release upload."
+    echo "      Install with 'brew install gh' or upload $DMG_PATH manually."
+    exit 0
+fi
+
+TAG="v$VERSION"
+echo ""
+if gh release view "$TAG" >/dev/null 2>&1; then
+    echo "==> Updating GitHub Release $TAG"
+    gh release upload "$TAG" "$DMG_PATH" --clobber
+else
+    echo "==> Creating GitHub Release $TAG"
+    gh release create "$TAG" "$DMG_PATH" \
+        --title "NekoRun $VERSION" \
+        --notes "Drag-to-install DMG. Ad-hoc signed — on first launch, approve via System Settings → Privacy & Security → Open Anyway."
+fi
