@@ -94,9 +94,8 @@
     transition: transform 0.15s ease;
   }
   .menubar-cat:hover { transform: scale(1.18); }
-  .menubar .clock { font-variant-numeric: tabular-nums; opacity: 0.85; }
   @media (max-width: 600px) {
-    .menubar .item, .menubar .clock { display: none; }
+    .menubar .item { display: none; }
     .menubar .appname { display: inline; }
   }
 
@@ -422,7 +421,6 @@
     <span class="spacer"></span>
     <div class="right">
       <img class="menubar-cat js-cat" src="assets/cat.png" alt="NekoRun cat icon — hover me" title="this is where I live">
-      <span class="clock" id="clock">Wed 9:41 AM</span>
     </div>
   </div>
 </nav>
@@ -512,18 +510,6 @@
     cat.addEventListener('mouseenter', () => { cat.src = awake; });
     cat.addEventListener('mouseleave', () => { if (!cat.classList.contains('uploading')) cat.src = sleepy; });
   });
-
-  // ---- live-ish clock ----
-  function tickClock() {
-    const d = new Date();
-    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    let h = d.getHours(), m = String(d.getMinutes()).padStart(2, '0');
-    const ap = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 || 12;
-    document.getElementById('clock').textContent = `${days[d.getDay()]} ${h}:${m} ${ap}`;
-  }
-  tickClock();
-  setInterval(tickClock, 30000);
 
   // ---- the demo ----
   const zone = document.getElementById('dropZone');
