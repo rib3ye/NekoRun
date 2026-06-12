@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://rib3ye.github.io/NekoRun/sitemap.xml
+Sitemap: https://nekorun.troubledyouth.org/sitemap.xml
