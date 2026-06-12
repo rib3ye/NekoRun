@@ -144,6 +144,17 @@
     font-style: italic;
     color: var(--flame);
   }
+  h1 code {
+    font-family: "Fragment Mono", ui-monospace, monospace;
+    font-size: 0.62em;
+    letter-spacing: -0.04em;
+    background: #fff;
+    border: 2px solid var(--ink);
+    border-radius: 0.18em;
+    padding: 0.04em 0.22em 0.08em;
+    box-shadow: 0.07em 0.07em 0 var(--rule);
+    vertical-align: 0.08em;
+  }
   .hero p.sub {
     font-size: 19px;
     color: var(--ink-soft);
@@ -415,7 +426,7 @@
       <img class="hero-cat js-cat" src="assets/cat.png" alt="The NekoRun cat. Sleepy until you hover.">
       <span class="hint">pet the cat</span>
     </div>
-    <h1>scp via <em>cat.</em></h1>
+    <h1><code>scp</code> via <em>cat.</em></h1>
     <p class="sub">NekoRun is a tiny macOS menu-bar utility that <span class="mono">scp</span>s whatever you drop on it. That's it. That's the whole app.</p>
     <div class="dl-row">
       <a class="dl-btn" href="https://github.com/rib3ye/NekoRun/releases/latest/download/NekoRun-1.0.dmg">
