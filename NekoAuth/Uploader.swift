@@ -30,8 +30,11 @@ final class UploadDestinationStore {
     }
 
     var displayLabel: String? {
-        guard let host, !host.isEmpty, let directory, !directory.isEmpty else { return nil }
-        return "\(host):\(directory)"
+        guard let host, !host.isEmpty else { return nil }
+        if let directory, !directory.isEmpty {
+            return "\(host):\(directory)"
+        }
+        return "\(host):"
     }
 
     private init() {
@@ -81,11 +84,11 @@ enum Uploader {
         let (host, directory) = await MainActor.run {
             (UploadDestinationStore.shared.host, UploadDestinationStore.shared.directory)
         }
-        guard let host, !host.isEmpty, let directory, !directory.isEmpty else {
+        guard let host, !host.isEmpty else {
             await MainActor.run {
                 presentFailure(
                     title: "Upload not configured",
-                    message: "Set the upload host and directory from the NekoRun menu before dropping files."
+                    message: "Set the upload host from the NekoRun menu before dropping files."
                 )
             }
             return
@@ -96,7 +99,9 @@ enum Uploader {
             Task { @MainActor in DropEnabledStatusBarButton.endUploadAnimation() }
         }
 
-        let destination = "\(host):\(directory)/"
+        // Empty directory → drop the files in the SSH user's remote home.
+        let dir = directory ?? ""
+        let destination = dir.isEmpty ? "\(host):" : "\(host):\(dir)/"
         // `--` ends scp's option parsing so neither file paths nor the
         // destination can ever be interpreted as flags (CVE-2020-15778
         // class — `-oProxyCommand=` in a leading argument is the canonical
@@ -121,6 +126,7 @@ enum Uploader {
     @MainActor
     static func presentChangeDestinationAlert() {
         let store = UploadDestinationStore.shared
+        let hasExisting = store.displayLabel != nil
         let alert = NSAlert()
         alert.messageText = "Upload Destination"
         alert.informativeText = "Set the SSH host and remote directory used when files are dropped on the menu bar icon."
@@ -135,7 +141,7 @@ enum Uploader {
         hostField.placeholderString = "user@hostname"
         hostField.lineBreakMode = .byTruncatingMiddle
 
-        let dirLabel = NSTextField(labelWithString: "Remote directory:")
+        let dirLabel = NSTextField(labelWithString: "Remote directory (optional):")
         dirLabel.frame = NSRect(x: 0, y: 32, width: width, height: 18)
 
         let dirField = NSTextField(frame: NSRect(x: 0, y: 4, width: width, height: 24))
@@ -153,15 +159,20 @@ enum Uploader {
         let saveButton = alert.addButton(withTitle: "Save")
         let cancelButton = alert.addButton(withTitle: "Cancel")
         cancelButton.keyEquivalent = "\u{1b}"
+        if hasExisting {
+            let removeButton = alert.addButton(withTitle: "Remove")
+            removeButton.hasDestructiveAction = true
+        }
 
-        let enabler = SaveButtonEnabler(button: saveButton, field: hostField)
+        let enabler = SaveButtonEnabler(button: saveButton, field: hostField, isValid: isUserAtHost)
         hostField.delegate = enabler
 
         NSApp.activate(ignoringOtherApps: true)
         alert.window.initialFirstResponder = hostField
         let response = alert.runModal()
         _ = enabler  // keep delegate alive for the modal lifetime
-        if response == .alertFirstButtonReturn {
+        switch response {
+        case .alertFirstButtonReturn:
             let newHost = hostField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             let newDir = dirField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             if let error = validateDestination(host: newHost, directory: newDir) {
@@ -170,6 +181,11 @@ enum Uploader {
             }
             store.host = newHost
             store.directory = newDir
+        case .alertThirdButtonReturn:
+            store.host = nil
+            store.directory = nil
+        default:
+            break
         }
     }
 
@@ -183,20 +199,32 @@ enum Uploader {
         if !host.unicodeScalars.allSatisfy({ hostAllowed.contains($0) }) {
             return "Host may only contain letters, digits, '.', '-', '_', or '@'."
         }
-        if directory.isEmpty { return "Directory cannot be empty." }
-        if directory.hasPrefix("-") {
-            return "Directory cannot start with '-'."
+        if !isUserAtHost(host) {
+            return "Host must be in the form user@hostname."
         }
-        let banned = CharacterSet.controlCharacters.union(.newlines)
-        if directory.unicodeScalars.contains(where: { banned.contains($0) }) {
-            return "Directory cannot contain control characters or newlines."
+        if !directory.isEmpty {
+            if directory.hasPrefix("-") {
+                return "Directory cannot start with '-'."
+            }
+            let banned = CharacterSet.controlCharacters.union(.newlines)
+            if directory.unicodeScalars.contains(where: { banned.contains($0) }) {
+                return "Directory cannot contain control characters or newlines."
+            }
         }
         return nil
+    }
+
+    // Requires exactly one '@' with non-empty user and host segments.
+    private static func isUserAtHost(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = trimmed.split(separator: "@", omittingEmptySubsequences: false)
+        return parts.count == 2 && !parts[0].isEmpty && !parts[1].isEmpty
     }
 
     @MainActor
     static func presentChangePostUploadHookAlert() {
         let store = PostUploadHookStore.shared
+        let hasExisting = store.command?.isEmpty == false
         let alert = NSAlert()
         alert.messageText = "Post-Upload Hook"
         alert.informativeText = "Shell command run locally after files are uploaded."
@@ -211,6 +239,10 @@ enum Uploader {
         let saveButton = alert.addButton(withTitle: "Save")
         let cancelButton = alert.addButton(withTitle: "Cancel")
         cancelButton.keyEquivalent = "\u{1b}"
+        if hasExisting {
+            let removeButton = alert.addButton(withTitle: "Remove")
+            removeButton.hasDestructiveAction = true
+        }
 
         let enabler = SaveButtonEnabler(button: saveButton, field: field)
         field.delegate = enabler
@@ -219,8 +251,13 @@ enum Uploader {
         alert.window.initialFirstResponder = field
         let response = alert.runModal()
         _ = enabler  // keep delegate alive for the modal lifetime
-        if response == .alertFirstButtonReturn {
+        switch response {
+        case .alertFirstButtonReturn:
             store.command = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .alertThirdButtonReturn:
+            store.command = nil
+        default:
+            break
         }
     }
 
@@ -334,9 +371,15 @@ enum Uploader {
 @MainActor
 private final class SaveButtonEnabler: NSObject, NSTextFieldDelegate {
     private weak var button: NSButton?
+    private let isValid: (String) -> Bool
 
-    init(button: NSButton, field: NSTextField) {
+    init(
+        button: NSButton,
+        field: NSTextField,
+        isValid: @escaping (String) -> Bool = { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    ) {
         self.button = button
+        self.isValid = isValid
         super.init()
         refresh(text: field.stringValue)
     }
@@ -347,7 +390,7 @@ private final class SaveButtonEnabler: NSObject, NSTextFieldDelegate {
     }
 
     private func refresh(text: String) {
-        button?.isEnabled = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        button?.isEnabled = isValid(text)
     }
 }
 
