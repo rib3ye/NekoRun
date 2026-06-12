@@ -382,54 +382,6 @@
     border: 1px solid var(--rule);
   }
 
-  /* ---------- honest section ---------- */
-  .honest-list {
-    margin-top: 32px;
-    border-top: 1.5px solid var(--ink);
-  }
-  .honest-item {
-    display: grid;
-    grid-template-columns: 220px 1fr;
-    gap: 20px;
-    padding: 20px 4px;
-    border-bottom: 1px solid var(--rule);
-  }
-  @media (max-width: 620px) { .honest-item { grid-template-columns: 1fr; gap: 6px; } }
-  .honest-item dt {
-    font-family: "Fragment Mono", monospace;
-    font-size: 13px;
-    color: var(--ink);
-    padding-top: 3px;
-  }
-  .honest-item dd { color: var(--ink-soft); font-size: 15.5px; }
-
-  .bomb-note {
-    margin-top: 44px;
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    background: #fff;
-    border: 1.5px solid var(--ink);
-    border-radius: var(--radius);
-    padding: 26px 28px;
-    box-shadow: 4px 4px 0 #f0c9ae;
-  }
-  .bomb-note img {
-    width: 72px;
-    height: 72px;
-    flex-shrink: 0;
-    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-  .bomb-note:hover img { transform: rotate(-12deg) scale(1.1); }
-  .bomb-note h3 {
-    font-size: 19px;
-    font-weight: 600;
-    margin-bottom: 6px;
-    font-variation-settings: "SOFT" 100;
-  }
-  .bomb-note p { font-size: 15px; color: var(--ink-soft); }
-  @media (max-width: 540px) { .bomb-note { flex-direction: column; text-align: center; } }
-
   /* ---------- footer ---------- */
   footer {
     margin-top: 80px;
@@ -538,44 +490,6 @@
         <span class="num">03</span>
         <h3>Drop stuff on the cat</h3>
         <p>Files, folders, whatever. The cat wiggles while <code>scp -r</code> does its thing. That wiggle is the progress bar.</p>
-      </div>
-    </div>
-  </section>
-
-  <div class="divider" aria-hidden="true">· · · 🐾 · · ·</div>
-
-  <!-- honest fine print -->
-  <section>
-    <p class="kicker">The fine print, cheerfully</p>
-    <h2>Some honest notes.</h2>
-    <dl class="honest-list">
-      <div class="honest-item">
-        <dt>menu bar only</dt>
-        <dd>No Dock icon, no window, no settings app. If you lose the cat, it's in the menu bar. It's always in the menu bar.</dd>
-      </div>
-      <div class="honest-item">
-        <dt>ssh keys required</dt>
-        <dd>NekoRun shells out to your actual <span class="mono">scp</span>. There's no password prompt — if <span class="mono">ssh yourserver</span> works in your terminal, the cat works too.</dd>
-      </div>
-      <div class="honest-item">
-        <dt>nothing baked in</dt>
-        <dd>No host, path, or command ships in the binary. No analytics, no network calls except the one you configured. It's your <span class="mono">scp</span> wearing a cat costume.</dd>
-      </div>
-      <div class="honest-item">
-        <dt>launch at login</dt>
-        <dd>One toggle. Uses Apple's own <span class="mono">SMAppService</span>, so it shows up in System Settings like a well-behaved citizen.</dd>
-      </div>
-      <div class="honest-item">
-        <dt>overwrites silently</dt>
-        <dd>Same filename on the server gets replaced without asking, because that's what <span class="mono">scp</span> does. The cat trusts you.</dd>
-      </div>
-    </dl>
-
-    <div class="bomb-note">
-      <img src="assets/bomb.png" alt="A cartoon bomb with a lit fuse">
-      <div>
-        <h3>When something breaks, you get a bomb.</h3>
-        <p>Wrong host, no network, missing Local Network permission — the failure alert shows this bomb and the actual <span class="mono">scp</span> error so you can fix it. It felt more honest than a sad cat.</p>
       </div>
     </div>
   </section>
