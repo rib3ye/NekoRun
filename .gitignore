@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Xcode user state / derived data
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+build/
+DerivedData/
+
+# Archives & exports
+*.xcarchive
+NekoAuth */
+NekoRun */
+release/
