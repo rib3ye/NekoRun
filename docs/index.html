@@ -438,7 +438,7 @@
   <section class="demo">
     <p class="kicker">Try it (no cat required)</p>
     <h2>Drag the file onto the cat.</h2>
-    <p class="section-note">This is roughly what using NekoRun feels like, minus the part where the file actually goes somewhere. You can also drag a real file in from your desktop — we promise it stays on your computer.</p>
+    <p class="section-note">This is roughly what using NekoRun feels like, minus the part where the file actually goes somewhere. You can also drag real files in from your desktop — several at once, even. We promise they stay on your computer.</p>
 
     <div class="demo-stage">
       <div class="drop-zone" id="dropZone">
@@ -475,7 +475,7 @@
       <div class="step">
         <span class="num">03</span>
         <h3>Drop stuff on the cat</h3>
-        <p>Files, folders, whatever. The cat wiggles while <code>scp -r</code> does its thing. That wiggle is the progress bar.</p>
+        <p>One file, a dozen files, whole folders — drop them all at once. The cat wiggles while <code>scp -r</code> does its thing. That wiggle is the progress bar.</p>
       </div>
     </div>
   </section>
@@ -525,18 +525,18 @@
   zone.addEventListener('drop', e => {
     e.preventDefault();
     zone.classList.remove('armed');
-    let name = 'cat_pics.rar';
+    let names = ['cat_pics.rar'];
     if (e.dataTransfer.files && e.dataTransfer.files.length) {
-      name = e.dataTransfer.files[0].name; // stays local — name only, file is never read
+      names = [...e.dataTransfer.files].map(f => f.name); // stays local — names only, files are never read
     } else {
       const t = e.dataTransfer.getData('text/plain');
-      if (t) name = t;
+      if (t) names = [t];
     }
-    runUpload(name);
+    runUpload(names);
   });
 
   // tap fallback for touch devices
-  cat.addEventListener('click', () => runUpload('cat_pics.rar'));
+  cat.addEventListener('click', () => runUpload(['cat_pics.rar']));
 
   function line(html) {
     return new Promise(res => {
@@ -547,7 +547,7 @@
     });
   }
 
-  async function runUpload(name) {
+  async function runUpload(names) {
     if (busy) return;
     busy = true;
     chip.classList.add('gone');
@@ -556,9 +556,15 @@
     cat.src = 'assets/cat-hover.png';
     term.innerHTML = '<span class="cursor"></span>';
 
-    const safe = name.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    await line(`<span class="dim">$</span> scp -r <span class="fl">"${safe}"</span> you@yourserver:~/uploads/`);
-    await line(`<span class="dim">${safe.slice(0, 28)}  100%  …fast enough…</span>`);
+    const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const safe = names.map(esc);
+    await line(`<span class="dim">$</span> scp -r ${safe.map(n => `<span class="fl">"${n}"</span>`).join(' ')} you@yourserver:~/uploads/`);
+    for (const n of safe.slice(0, 4)) {
+      await line(`<span class="dim">${n.slice(0, 28)}  100%  …fast enough…</span>`);
+    }
+    if (safe.length > 4) {
+      await line(`<span class="dim">…and ${safe.length - 4} more  100%</span>`);
+    }
     await line(`<span class="ok">✓ upload complete</span>`);
     await line(`<span class="dim">$</span> <span class="dim"># running post-upload hook…</span>`);
     await line(`<span class="ok">✓ hook finished. purrrr~</span>`);
@@ -566,7 +572,7 @@
     cat.classList.remove('uploading');
     cat.style.transform = '';
     cat.src = 'assets/cat.png';
-    label.innerHTML = 'again? drag another file in<br>(a real one from your desktop works too)';
+    label.innerHTML = 'again? drag more files in<br>(real ones from your desktop work too — even a handful)';
     chip.classList.remove('gone');
     busy = false;
   }
