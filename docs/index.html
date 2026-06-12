@@ -472,8 +472,12 @@
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
     zone.classList.add('armed');
+    cat.src = 'assets/cat-hover.png';
   });
-  zone.addEventListener('dragleave', () => zone.classList.remove('armed'));
+  zone.addEventListener('dragleave', () => {
+    zone.classList.remove('armed');
+    if (!busy) cat.src = 'assets/cat.png';
+  });
   zone.addEventListener('drop', e => {
     e.preventDefault();
     zone.classList.remove('armed');
