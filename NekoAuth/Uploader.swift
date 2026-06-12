@@ -10,6 +10,7 @@
 import AppKit
 import Foundation
 import Observation
+import Security
 
 // MARK: - Persistence
 
@@ -51,20 +52,23 @@ final class UploadDestinationStore {
 @Observable
 final class PostUploadHookStore {
     static let shared = PostUploadHookStore()
-    private static let key = "PostUploadCommand"
+    private static let keychainAccount = "PostUploadCommand"
+    private static let legacyDefaultsKey = "PostUploadCommand"
 
     var command: String? {
-        didSet {
-            if let command, !command.isEmpty {
-                UserDefaults.standard.set(command, forKey: Self.key)
-            } else {
-                UserDefaults.standard.removeObject(forKey: Self.key)
-            }
-        }
+        didSet { KeychainStore.write(command, forAccount: Self.keychainAccount) }
     }
 
     private init() {
-        self.command = UserDefaults.standard.string(forKey: Self.key)
+        // One-time migration: move any prior plaintext value out of
+        // UserDefaults so other user-level processes can't rewrite it.
+        if let legacy = UserDefaults.standard.string(forKey: Self.legacyDefaultsKey),
+           !legacy.isEmpty,
+           KeychainStore.read(account: Self.keychainAccount) == nil {
+            KeychainStore.write(legacy, forAccount: Self.keychainAccount)
+        }
+        UserDefaults.standard.removeObject(forKey: Self.legacyDefaultsKey)
+        self.command = KeychainStore.read(account: Self.keychainAccount)
     }
 }
 
@@ -93,7 +97,12 @@ enum Uploader {
         }
 
         let destination = "\(host):\(directory)/"
-        let scpArgs = ["-r"] + urls.map(\.path) + [destination]
+        // `--` ends scp's option parsing so neither file paths nor the
+        // destination can ever be interpreted as flags (CVE-2020-15778
+        // class — `-oProxyCommand=` in a leading argument is the canonical
+        // attack). Host/directory are also validated on save; this is
+        // defense in depth.
+        let scpArgs = ["-r", "--"] + urls.map(\.path) + [destination]
         if case .failure(let message) = await run("/usr/bin/scp", scpArgs) {
             await MainActor.run { presentFailure(title: "scp failed", message: message) }
             return
@@ -153,9 +162,36 @@ enum Uploader {
         let response = alert.runModal()
         _ = enabler  // keep delegate alive for the modal lifetime
         if response == .alertFirstButtonReturn {
-            store.host = hostField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            store.directory = dirField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            let newHost = hostField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            let newDir = dirField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let error = validateDestination(host: newHost, directory: newDir) {
+                presentFailure(title: "Invalid destination", message: error)
+                return
+            }
+            store.host = newHost
+            store.directory = newDir
         }
+    }
+
+    private static func validateDestination(host: String, directory: String) -> String? {
+        if host.isEmpty { return "Host cannot be empty." }
+        if host.hasPrefix("-") {
+            return "Host cannot start with '-' — scp/ssh would interpret it as an option."
+        }
+        let hostAllowed = CharacterSet(charactersIn:
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.-_@")
+        if !host.unicodeScalars.allSatisfy({ hostAllowed.contains($0) }) {
+            return "Host may only contain letters, digits, '.', '-', '_', or '@'."
+        }
+        if directory.isEmpty { return "Directory cannot be empty." }
+        if directory.hasPrefix("-") {
+            return "Directory cannot start with '-'."
+        }
+        let banned = CharacterSet.controlCharacters.union(.newlines)
+        if directory.unicodeScalars.contains(where: { banned.contains($0) }) {
+            return "Directory cannot contain control characters or newlines."
+        }
+        return nil
     }
 
     @MainActor
@@ -206,35 +242,53 @@ enum Uploader {
             process.standardError = stderrPipe
             process.standardOutput = stdoutPipe
 
+            // Drain stderr and stdout on background queues while the child
+            // runs. Reading them only after waitUntilExit() could deadlock:
+            // the pipe buffer is ~64KB, and a hook that emits more would
+            // block its own exit waiting for us to read.
+            let drainQueue = DispatchQueue(label: "NekoRun.process.drain", attributes: .concurrent)
+            let drainGroup = DispatchGroup()
+            nonisolated(unsafe) var stderrData = Data()
+            nonisolated(unsafe) var stdoutData = Data()
+            drainGroup.enter()
+            drainQueue.async {
+                stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                drainGroup.leave()
+            }
+            drainGroup.enter()
+            drainQueue.async {
+                stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                drainGroup.leave()
+            }
+
+            process.terminationHandler = { proc in
+                drainGroup.notify(queue: drainQueue) {
+                    let stderrText = String(data: stderrData, encoding: .utf8) ?? ""
+                    let stdoutText = String(data: stdoutData, encoding: .utf8) ?? ""
+                    if proc.terminationStatus == 0 {
+                        continuation.resume(returning: .success)
+                    } else {
+                        let combined = [stderrText, stdoutText]
+                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                            .filter { !$0.isEmpty }
+                            .joined(separator: "\n")
+                        let message = combined.isEmpty
+                            ? "Exited with status \(proc.terminationStatus)."
+                            : combined
+                        continuation.resume(returning: .failure(message))
+                    }
+                }
+            }
+
             do {
                 try process.run()
             } catch {
+                // The child never started, so terminationHandler will not
+                // fire. Close the read ends to unblock the drain tasks
+                // (they'll observe EOF and exit), then surface the failure.
+                try? stderrPipe.fileHandleForReading.close()
+                try? stdoutPipe.fileHandleForReading.close()
                 continuation.resume(returning: .failure(error.localizedDescription))
-                return
-            }
-
-            process.waitUntilExit()
-
-            let stderrText = String(
-                data: stderrPipe.fileHandleForReading.readDataToEndOfFile(),
-                encoding: .utf8
-            ) ?? ""
-            let stdoutText = String(
-                data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(),
-                encoding: .utf8
-            ) ?? ""
-
-            if process.terminationStatus == 0 {
-                continuation.resume(returning: .success)
-            } else {
-                let combined = [stderrText, stdoutText]
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-                    .joined(separator: "\n")
-                let message = combined.isEmpty
-                    ? "Exited with status \(process.terminationStatus)."
-                    : combined
-                continuation.resume(returning: .failure(message))
             }
         }
     }
@@ -275,5 +329,56 @@ private final class SaveButtonEnabler: NSObject, NSTextFieldDelegate {
 
     private func refresh(text: String) {
         button?.isEnabled = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
+// MARK: - Keychain
+
+// Thin wrapper around SecItem for storing secrets the app should be the
+// only writer of. Items are scoped by service+account; default ACL ties
+// access to the running app's code signature, so other user-level
+// processes can't silently read or rewrite them.
+enum KeychainStore {
+    private static let service = "com.twobuttz.NekoRun"
+
+    static func read(account: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let value = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return value
+    }
+
+    static func write(_ value: String?, forAccount account: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        guard let value, !value.isEmpty else {
+            SecItemDelete(query as CFDictionary)
+            return
+        }
+        let data = Data(value.utf8)
+        let updateStatus = SecItemUpdate(
+            query as CFDictionary,
+            [kSecValueData as String: data] as CFDictionary
+        )
+        if updateStatus == errSecItemNotFound {
+            var add = query
+            add[kSecValueData as String] = data
+            add[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
+            SecItemAdd(add as CFDictionary, nil)
+        }
     }
 }
