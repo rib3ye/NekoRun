@@ -110,9 +110,37 @@
     width: 120px;
     height: 120px;
     display: block;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
     transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
-  .hero-cat-wrap:hover .hero-cat { transform: rotate(-6deg) scale(1.06); }
+  /* only let hover drive the cat where hover actually exists, so it
+     never sticks "awake" after a tap on touch screens */
+  @media (hover: hover) {
+    .hero-cat-wrap:hover .hero-cat { transform: rotate(-6deg) scale(1.06); }
+  }
+  .hero-cat.petted { animation: pet-bounce 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes pet-bounce {
+    0%   { transform: scale(1); }
+    35%  { transform: rotate(-7deg) scale(1.12); }
+    70%  { transform: rotate(5deg) scale(1.05); }
+    100% { transform: rotate(0) scale(1); }
+  }
+  .pet-heart {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    font-size: 20px;
+    pointer-events: none;
+    will-change: transform, opacity;
+    animation: pet-float 0.9s ease-out forwards;
+  }
+  @keyframes pet-float {
+    0%   { opacity: 0; transform: translate(-50%, 0) scale(0.6); }
+    20%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0)), -48px) scale(1.1); }
+  }
   .hero-cat-wrap .hint {
     position: absolute;
     bottom: calc(100% + 6px);
@@ -130,7 +158,15 @@
     font-style: normal;
     display: inline-block;
   }
-  @media (max-width: 620px) { .hero-cat-wrap .hint { display: none; } }
+  @media (max-width: 620px) {
+    .hero-cat-wrap .hint {
+      left: 50%;
+      bottom: calc(100% + 4px);
+      transform: translateX(-50%) rotate(-3deg);
+      transform-origin: center;
+    }
+    .hero-cat-wrap .hint::before { content: "↓"; margin: 0 4px 0 0; }
+  }
 
   h1 {
     font-size: clamp(52px, 9vw, 92px);
@@ -418,7 +454,7 @@
   <!-- hero -->
   <section class="hero">
     <div class="hero-cat-wrap">
-      <img class="hero-cat js-cat" src="assets/cat.png" alt="The NekoRun cat. Sleepy until you hover.">
+      <img class="hero-cat js-cat" src="assets/cat.png" alt="The NekoRun cat. Sleepy until you pet it.">
       <span class="hint">pet the cat</span>
     </div>
     <h1><code>scp</code> via <em>cat.</em></h1>
@@ -491,12 +527,60 @@
 </main>
 
 <script>
-  // ---- hover swap: every cat opens its eyes, just like the real menu bar icon ----
+  // ---- pet the cat: opens its eyes like the real menu bar icon, and on
+  //      touch (where there's no hover) a tap wakes it and it purrs ----
+  const canHover = matchMedia('(hover: hover)').matches;
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   document.querySelectorAll('.js-cat').forEach(cat => {
+    const wrap = cat.closest('.hero-cat-wrap') || cat.parentElement;
+    const hint = wrap.querySelector('.hint');
     const sleepy = cat.src;
     const awake = sleepy.replace(/cat(-white)?\.png$/, 'cat$1-hover.png');
-    cat.addEventListener('mouseenter', () => { cat.src = awake; });
+    new Image().src = awake; // preload so the first pet doesn't flicker
+
+    const restHint = canHover ? 'pet the cat' : 'tap to pet';
+    if (hint) hint.textContent = restHint;
+
+    let pets = 0, sleepTimer, hintTimer;
+
+    // desktop hover still wakes the cat
+    cat.addEventListener('mouseenter', () => { if (!cat.classList.contains('uploading')) cat.src = awake; });
     cat.addEventListener('mouseleave', () => { if (!cat.classList.contains('uploading')) cat.src = sleepy; });
+
+    function floatHeart() {
+      if (reduceMotion) return;
+      const h = document.createElement('span');
+      h.className = 'pet-heart';
+      h.textContent = pets % 3 === 0 ? '🐾' : '♡';
+      h.style.setProperty('--dx', (Math.random() * 44 - 22).toFixed(0) + 'px');
+      wrap.appendChild(h);
+      setTimeout(() => h.remove(), 900);
+    }
+
+    function pet() {
+      cat.src = awake;
+      cat.classList.remove('petted');
+      void cat.offsetWidth; // restart the bounce on rapid taps
+      cat.classList.add('petted');
+      floatHeart();
+
+      pets++;
+      if (hint) {
+        clearTimeout(hintTimer);
+        if (pets >= 4) hint.textContent = 'purrrr~';
+        hintTimer = setTimeout(() => { pets = 0; hint.textContent = restHint; }, 1700);
+      }
+
+      // on touch there's no mouseleave, so doze off once the petting stops
+      if (!canHover) {
+        clearTimeout(sleepTimer);
+        sleepTimer = setTimeout(() => { cat.src = sleepy; cat.classList.remove('petted'); }, 1500);
+      }
+    }
+
+    // pointerdown is snappy and covers mouse + touch + pen
+    cat.addEventListener('pointerdown', e => { e.preventDefault(); pet(); });
   });
 
   // ---- the demo ----
